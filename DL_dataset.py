@@ -20,23 +20,36 @@ class DL19Dataset:
 
     def load_collection(self):
         """
-        collection是什么？
-        collection是一个包含所有文档的文件，通常为collection.tsv。每一行包含一个文档ID和对应的文档内容，格式如下：
-        docid \t text
-        例如：
-        123456 \t This is the content of the document.
-        234567 \t Another document content here.
-
-        本方法会读取collection文件，将所有文档的ID存入self.doc_ids，将文档内容（分词后的小写单词列表）存入self.corpus。
+        读取msmarco-passagetest2019-top1000.tsv格式的文件
+        格式：query_id \t doc_id \t query_text \t document_text
+        这里针对特定的query_id和query_text，提取前1000名候选文档，后续用BM25对这些候选文档重新排序并评测。
         """
-        print("[DL19Dataset] Loading collection...")
+        print("[DL19Dataset] Loading collection from msmarco-passagetest2019-top1000.tsv...")
+        self.doc_ids = []
+        self.corpus = []
+        self.queries = []
+        self.query_doc_map = {}  # {query_id: [doc_id1, doc_id2, ...]}
+        self.query_text_map = {} # {query_id: query_text}
+
         with open(self.collection_path, 'r', encoding='utf8') as f:
             reader = csv.reader(f, delimiter='\t')
-            for i, row in enumerate(reader):
-                docid, text = row[0], row[1]
-                self.doc_ids.append(docid)
-                self.corpus.append(text.lower().split())
-        print(f"Loaded {len(self.corpus)} documents.")
+            for row in reader:
+                if len(row) >= 4:
+                    query_id, doc_id, query_text, document_text = row[0], row[1], row[2], row[3]
+                    # 记录query_id和query_text（只保留第一个出现的query_text）
+                    if query_id not in self.query_text_map:
+                        self.query_text_map[query_id] = query_text
+                        self.queries.append((query_id, query_text))
+                    # 记录每个query_id对应的doc_id列表
+                    if query_id not in self.query_doc_map:
+                        self.query_doc_map[query_id] = []
+                    self.query_doc_map[query_id].append(doc_id)
+                    # 记录文档
+                    self.doc_ids.append(doc_id)
+                    self.corpus.append(document_text.lower().split())
+
+        print(f"Loaded {len(self.corpus)} query-doc pairs from {self.collection_path}")
+        print(f"Loaded {len(self.queries)} unique queries from {self.collection_path}")
 
     def load_queries(self):
         print("[DL19Dataset] Loading queries using irdatasets...")
